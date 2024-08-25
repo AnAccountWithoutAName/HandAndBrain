@@ -27,8 +27,11 @@ export default function WaitingRoom(){
       const message = JSON.parse(event.data)
       if(message.hasOwnProperty("gameId")){
 
+
         
-        navigate("./game", {state: {...location.state,...message}})
+
+        
+        navigate("/game", {state: {...location.state,...message}})
       }
     })
 

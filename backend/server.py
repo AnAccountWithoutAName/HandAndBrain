@@ -9,12 +9,12 @@ Clients_Queue = []
 Clients = {}
 Games = []
 Game_id_last = 0
-Players = {}
+Assigned_Game = []
 
 
 class Game():
     def __init__(self, players , gameId, usernames):
-        self.fen = "start"
+        self.fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
         self.validMoves = {}
         self.highlightSquares = {}
         self.roles = {k:v for k,v in zip(players,['wb','wh','bb','bh'])}
@@ -40,7 +40,7 @@ def updateGame(game_id,data):
 
 
 async def GameConstructor(websocket):
-    global Clients_Queue, Game_id_last, Clients
+    global Clients_Queue, Game_id_last, Clients, Assigned_Game
     async for message in websocket:
         data = json.loads(message)
         print(data)
@@ -51,6 +51,7 @@ async def GameConstructor(websocket):
             print("Client Queue: ", Clients_Queue)
             if(len(Clients_Queue) >= 4):
                 Players = Clients_Queue[:4]
+                Assigned_Game.extend(Players)
                 Clients_Queue = Clients_Queue[4:]
                 Games.append(Game(Players,Game_id_last, [Clients[id][1] for id in Players]))
                 Game_id_last += 1
@@ -58,7 +59,8 @@ async def GameConstructor(websocket):
 
 
         if(data['status'] == "FETCH_LOBBY"):
-            if(data['userid'] not in Clients_Queue):
+            print("Assigned: ",Assigned_Game)
+            if(data['userid'] in Assigned_Game):
                 for sockets in [Clients[ws][0] for ws in Games[-1].roles.keys()]:
                     await sockets.send(json.dumps(Games[-1].__dict__))
             print("Done Sending")
