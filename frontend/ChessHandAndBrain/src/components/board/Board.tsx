@@ -1,9 +1,11 @@
 import { Chessboard } from "react-chessboard";
 import "./board.css";
-import React, { Component } from "react";
+import React, { Component, useEffect, useRef } from "react";
 import { Move, Piece, PieceSymbol, Square } from "chess.js";
 import { Chess } from "chess.js";
 import { useState } from "react";
+import socket from "./websocket";
+import { useLocation } from "react-router-dom";
 
 var piecePositions: { [piece: string]: Array<Square> } = {
   wp: ["a2", "b2", "c2", "d2", "e2", "f2", "g2", "h2"],
@@ -41,9 +43,31 @@ export default function PlayGame() {
   const [MoveSquares, setMoveSquares] = useState({})
   const [Flag, setFlag] = useState<boolean>(true);
   const [PieceSel,setPieceSel] = useState<string|null>(null)
-  
-  
+  let location = useLocation()
+  const [gamestate, setGamestate] = useState(location.state)
+  const turn = useRef(gamestate.turn === gamestate.userid)
+  const fen = useRef(Game.fen())
 
+  useEffect(()=>{
+
+    switch (gamestate.roles[gamestate.userid]) {
+      case "wb":
+        setPlayer({ role: "Brain", color: "w" });
+        break;
+      case "wh":
+        setPlayer({ role: "Hand", color: "w" });
+        break;
+      case "bb":
+        setPlayer({ role: "Brain", color: "b" });
+        break;
+      case "bh":
+        setPlayer({ role: "Hand", color: "b" });
+        break;
+    
+
+    }
+
+  },[])
 
 
   function Move(move: PartialMove, piece: string) {
@@ -86,6 +110,8 @@ export default function PlayGame() {
       return;
     }
 
+    if(turn){
+
     if(Player.role === "Brain"){
     if (
       piece !== undefined &&
@@ -102,7 +128,7 @@ export default function PlayGame() {
           return;
         }
         ValidMovesSquares[Square] = { background: "radial-gradient(circle at center,#4deb38 ,#47ba38 95% , transparent 5%)",
-
+          borderRadius:"0%"
          };
       });
 
@@ -117,9 +143,13 @@ export default function PlayGame() {
       Flag
     ) {
       setFlag(false);
-      setPlayer({...Player, role: "Hand"})
-      return;
+      gamestate.validMoves = ValidMoves
+      gamestate.highlightSquares = Highlights
+      gamestate.piecePositions = piecePositions
+      socket.send({status:"MADE_MOVE", ...gamestate})
+      turn.current = false
 
+      return;
     }
   }
 
@@ -140,9 +170,7 @@ export default function PlayGame() {
 
         element = element.replace("#","")
         element = element.replace("+","")
-
         element = element.slice(-2)
-
 
         MoveSqs[element] = {background: "radial-gradient(circle , rgba(0,0,0,0.1) 30%, transparent 30%)"  ,
         borderRadius: "50%"}}
@@ -153,32 +181,38 @@ export default function PlayGame() {
       setMoveFrom(square)
       setMoveSquares(MoveSqs)
       
-
-      
       }
     if (Object.keys(MoveSquares).includes(square)) {
       setMoveTo(square);
       if (MoveFrom &&  PieceSel) {
         Move({ from: MoveFrom, to: square }, PieceSel);
-        setHighlights({});
-        setMoveSquares({});
+        setHighlights({})
+        setMoveSquares({})
         setMoveFrom(null)
         setMoveTo(null)
         setPieceSel(null)
-        setPlayer({color: Player.color === 'w'?'b':'w' , role: "Brain"})
         setFlag(true)
+
 
         return;
 
       }
-
+    
     }
 
-
-
-
-    }
+   }
   }
+  else{
+    socket.addEventListener("message",(ev) => {
+      const message = JSON.parse(ev.data)
+      setValidMoves(message.validMoves)
+      setHighlights(message.highlightSquares)
+      const GameCopy = new Chess(message.fen)
+      setGame(GameCopy)
+      
+    })
+  }
+ }
 
 
   return (
