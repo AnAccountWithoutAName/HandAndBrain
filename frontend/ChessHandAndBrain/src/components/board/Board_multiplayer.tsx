@@ -8,7 +8,7 @@
   import { useLocation } from "react-router-dom";
 
   export default function Board_multiplayer() {
-    const piecePositions: { [piece: string]: Array<string> } = {
+    const initialpiecePositions: { [piece: string]: Array<string> } = {
       "wp": ["a2", "b2", "c2", "d2", "e2", "f2", "g2", "h2"],
       "wr": ["a1", "h1"],
       "wn": ["b1", "g1"],
@@ -22,12 +22,17 @@
       "bq": ["d8"],
       "bk": ["e8"],
     };
+    
+
     const location = useLocation()
     const [game, setGame] = useState(new Chess());
     const Player = useRef({ role: "", colour: "", turn: false });
-    const [gamestate, setGamestate] = useState<any>({...location.state, piecePositions: piecePositions});
+    const [gamestate, setGamestate] = useState<any>({...location.state, piecePositions: initialpiecePositions});
     const [movefrom, setMovefrom] = useState(null);
     const [movesqr, setMovesqrs] = useState({});
+    const [selpiece, setSelpiece] = useState("")
+
+  
 
 
     
@@ -52,6 +57,12 @@
           Player.current = { turn: false, role: "Hand", colour: "b" };
           break;
       }
+      if (!gamestate.piecePositions || Object.keys(gamestate.piecePositions).length === 0) {
+        setGamestate((prevState:any) => ({
+          ...prevState,
+          piecePositions: initialpiecePositions
+        }));
+      }
 
     }, []);
 
@@ -59,6 +70,7 @@
     useEffect(()=>{
 
       socket.addEventListener("message",(event)=>{
+
 
         const message = JSON.parse(event.data)
         console.log(message)
@@ -72,10 +84,11 @@
         }
 
       })
+      
 
 
 
-    },[Player.current.turn])
+    },[Player.current.turn,initialpiecePositions])
 
 
 
@@ -108,7 +121,10 @@
     }
 
     function Move(move: any, piece: any) {
-      const gameCopy = new Chess(game.fen());
+      
+      const gameCopy = new Chess(game.fen())
+      Object.assign(gameCopy,game)
+
       const valid = gameCopy.move(move);
       if (valid === null) {
         return false;
@@ -121,17 +137,25 @@
         move
       );
 
+      const whoseTurn = Object.keys(gamestate.roles).indexOf(gamestate.userid)
+
       const gamestateCopy = {
         ...gamestate,
         validMoves: {},
         highlightSquares: {},
         piecePositions: piecePositions,
         fen: gameCopy.fen(),
+        turn: Object.keys(gamestate.roles)[(whoseTurn + 1)%4]
       };
+
+      console.log(gameCopy.fen())
+      console.log(gamestateCopy)
 
       socket.send(JSON.stringify({ status: "MADE_MOVE", ...gamestateCopy }));
 
       setGamestate(gamestateCopy);
+      setMovesqrs({})
+      
 
       return true;
     }
@@ -142,8 +166,10 @@
           Player.current.colour === piece[0].toLowerCase() &&
           !Object.keys(gamestate.highlightSquares).includes(square)
         ) {
-          const squaresToHighlight =
-            gamestate.piecePositions[piece.toLowerCase()];
+          const squaresToHighlight = gamestate.piecePositions[piece.toLowerCase()];
+
+          console.log(gamestate)
+
           const styling: any = {};
           squaresToHighlight.forEach((sq: any) => {
             if (game.moves({ square: sq }).length === 0) return;
@@ -157,6 +183,7 @@
           const gamestateCopy = { ...gamestate, highlightSquares: styling };
 
           setGamestate(gamestateCopy);
+          return;
         }
 
         if (
@@ -178,23 +205,31 @@
           socket.send(JSON.stringify({ status: "MADE_MOVE", ...gamestateCopy }));
 
           Player.current.turn = false;
+          return;
         }
       }
     }
+    
     function onHandMove(square: any, piece: any) {
-      if (piece) {
-        if (Object.keys(gamestate.highlightSquares).includes(square)) {
+  
+
+        if (Object.keys(gamestate.highlightSquares).includes(square) && piece ) {
           generateMoves(square);
           setMovefrom(square);
+          setSelpiece(piece)
           return;
-        } else if (Object.keys(movesqr).includes(square)) {
-          Move({ from: movefrom, to: square }, piece);
+        }
+         else if(Object.keys(movesqr).includes(square) ) {
+          const valid = Move({ from: movefrom, to: square }, selpiece);
+          console.log(valid)
           Player.current.turn = false;
           return;
 
         }
-      }
+      
     }
+      
+    
 
     function onClick(square: any, piece: any) {
       if (Player.current.turn === true) {

@@ -35,6 +35,7 @@ def updateGame(game_id,data):
     game.highlightSquares = data['highlightSquares']
     game.turn = data['turn']
     game.piecePositions = data['piecePositions']
+    game.fen = data['fen']
 
 
 
@@ -68,7 +69,9 @@ async def GameConstructor(websocket):
             print("Received Move")
             id = data['gameId']
             updateGame(int(id),data)
-            for sockets in [Clients[ws][0] for ws in Games[int(id)].roles.keys()]:
+            print(Games[id].__dict__)
+            for sockets in [Clients[ws][0] for ws in Games[int(id)].roles.keys() if data['userid'] != ws]:
+                print(sockets)
                 await sockets.send(json.dumps(Games[id].__dict__))
 
 
